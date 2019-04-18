@@ -65,15 +65,16 @@ export function traceUse(obj, name, opts) {
         getPrototypeOf: (target) => {
             return Object.getPrototypeOf(target);
         },
-        /*getOwnPropertyDescriptor: (target, propname) => {
-            const val = target[propname];
+        getOwnPropertyDescriptor: (target, propname) => {
+            if (!target.hasOwnProperty(propname)) { return; }
+            const self = this;
             return {
-                value: val,
-                writable: true,
+                get: () => self.get(target, propname),
+                set: (val) => self.set(target, propname, val),
                 configurable: true,
                 enumerable: true
             };
-        },*/
+        },
     });
 }
 
