@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Spice App Example: basic-form</title>
+  </head>
+  <body>
+    <form>
+        <div>
+            <input name="name" type="text" />
+        </div>
+        <div>
+            <input name="phone" type="tel" />
+        </div>
+        <div>
+            <label for="status">Status:</label>
+            <select name="status">
+                <option>Please select</option>
+                <option value="single">Single</option>
+                <option value="married">Married</option>
+                <option value="other">Other</option>
+            </select>
+            <div>
+                <input name="statusText" type="text" placeholder="Please specify" />
+                <label for="statusText" style="display: none">(* need to know the status)</label>
+            </div>
+        </div>
+        <div>
+            <label for="agreement">Agree to Terms & Conditions?</label>
+            <input name="agreement" type="checkbox" />
+        </div>
+        <div>
+            <button name="submit" type="submit">Submit</button>
+        </div>
+    </form>
+  </body>
+</html>
