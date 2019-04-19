@@ -1,9 +1,10 @@
 import ReactDOM from 'react-dom';
 import debug from './debug';
+import { traceUse } from './trace';
 import { attachToDOM, detachFromDOM } from './attach';
 import { proxyDOMObject, unwrapDOMProxyArgs, updateDOMProxy } from './proxydom';
 import { createVNode } from './vnode';
-import { traceUse } from './trace';
+import { createDOMNodeRestorable, createDOMStylesRestorable } from './restore';
 
 /**
  * Blend generated React DOM tree with an already existing DOM.
@@ -89,11 +90,20 @@ const blendVNode = Symbol('blend vnode');
 function blendDOMNode(domNode, opts) {
     opts = opts || {};
     const vnode = createVNode(domNode);
-    const restorable = createTargetNodeRestorable();
+    const restorable = createDOMNodeRestorable();
+    const _once = {};
     const blendDOMNode = proxyDOMObject(domNode, {
         override: {
-            'ownerDocument': { wrap: blendDOMDocument },
-            'style': { wrap: (domStyles) => blendDOMStyles(domStyles, vnode, restorable) },
+            'ownerDocument': { 
+                get: (_, propName) => (propName in _once) 
+                    ? _once[propName] 
+                    : (_once[propName] = blendDOMDocument(domNode[propName]))
+            },
+            'style': { 
+                get: (_, propName) => (propName in _once) 
+                    ? _once[propName] 
+                    : (_once[propName] = blendDOMStyles(vnode, restorable))
+            },
             'appendChild': {
                 invoke: (_, fnName, targetfn, args) => {
                     debug.log(`[CALL] <${domNode.tagName}\\>.${fnName}*()`, args);
@@ -123,7 +133,7 @@ function blendDOMNode(domNode, opts) {
                         vnode.children.splice(i, 0, vnodeChild);
                         vnodeChild.reconcile();
                         if (vnode.attached) {
-                            // TODO: attach doesn't take beforeChild as reference... hmmm??
+                            // TODO: attachToDOM doesn't take beforeChild as reference... hmmm??
                             vnode.dispatch((targetNode) => 
                                 vnodeBeforeChild.dispatch((targetBefore) => attachToDOM(targetNode, vnodeChild, targetBefore)));
                         }
@@ -208,134 +218,28 @@ function blendDOMDocument(domDocument) {
 }
 
 /**
- * TODO: refactor...
+ * Setup tracking proxy for the CSSStyleDeclaration (node.style) object,
+ * to track CSS style changes.
  * 
- * @param {CSSStyleDeclaration} domStyles 
  * @param {import('./vnode').VNode} vnode 
+ * @param {import('./restore').Restorable} restorable
  */
-function blendDOMStyles(domStyles, vnode, restorable) {
-    const restorableStyle = restorable.sub('style');
-    return proxyDOMObject(domStyles, {
-        override: {
-            'setProperty': {
-                invoke: (_, fnName, targetfn, args) => {
-                    debug.log(`[CALL ] <${vnode.domNode.tagName}\\>.style.${fnName}()`, args);
-                    const [propName] = args;
-                    vnode.dispatch((targetNode) => {
-                        restorableStyle.once(`prop:${propName}`, () => {
-                            const oldVal = targetNode.style.getPropertyValue(propName);
-                            const oldPriority = targetNode.style.getPropertyPriority(propName);
-                            return restorable.pushUndo(() => targetNode.style.setProperty(propName, oldVal, oldPriority));    
-                        });
-                        targetfn.apply(targetNode, args);
-                    });
-                    return targetfn.apply(domStyles, args);
-                }
-            }
-        },
-        default: {
+function blendDOMStyles(vnode, restorable) {
+    /** @type {import('./restore').DOMStylesRestorable} */
+    const restorableStyle = restorable.sub('style', createDOMStylesRestorable);
+    const domNode = vnode.domNode;
+    return proxyDOMObject(domNode.style, {
+       default: {
             set: (_, propName, val) => {
-                debug.log(`[SET ] <${vnode.domNode.tagName}\\>.style.${propName}`, val);
+                debug.log(`[SET ] <${domNode.tagName}\\>.style.${propName}`, val);
                 vnode.dispatch((targetNode) => restorableStyle.set(targetNode.style, propName, val));
-                vnode.domNode.style[propName] = val;
-            }
+                domNode.style[propName] = val;
+            },
+            invoke: (_, fnName, targetfn, args) => {
+                debug.log(`[CALL] <${domNode.tagName}\\>.style.${fnName}()`, args);
+                vnode.dispatch((targetNode) => restorableStyle.invoke(targetNode.style, fnName, targetfn, args));
+                return targetfn.apply(domNode.style, args);
+            },
         }
     });
-}
-
-// TODO: move to 'restore.js'
-
-function createRestorable() {
-    const _undo = [];
-    const _once = {};
-    return {
-        createNew() {
-            return createRestorable();
-        },
-        once(key, cb) {
-            return (key in _once) ? _once[key] : (_once[key] = cb());
-        },
-        sub(name) {
-            return this.once('sub:' + name, () => {
-                const subr = this.createNew();
-                this.pushUndo(() => subr.restore());
-                return subr;
-            });
-        },
-        pushUndo(cb) {
-            return _undo.push(cb);
-        },
-        restore() {
-            _undo.forEach(cb => cb());
-        }
-    };
-}
-
-function createObjectRestorable() {
-    const restorable = createRestorable();
-    return {
-        ...restorable,
-        createNew () {
-            return createObjectRestorable();
-        },
-        set (obj, propName, val) {
-            const key = `prop:${propName}`;
-            restorable.once(key, () => {
-                const oldVal = obj[propName];
-                return (propName in obj)
-                    ? restorable.pushUndo(() => obj[propName] = oldVal)
-                    : restorable.pushUndo(() => delete obj[propName]);
-            });
-            obj[propName] = val;
-        }
-    };
-}
-
-function createTargetNodeRestorable() {
-    const restorable = createObjectRestorable();
-    return {
-        ...restorable,
-        invoke (targetNode, fnName, targetfn, args) {
-            switch (fnName) {
-                case 'setAttribute': {
-                    const [ name ] = args;
-                    const key = `attr:${name}`;
-                    restorable.once(key, () => {
-                        const oldVal = targetNode.getAttribute(name);
-                        return targetNode.hasAttribute(name)
-                            ? restorable.pushUndo(() => targetNode.setAttribute(name, oldVal))
-                            : restorable.pushUndo(() => targetNode.removeAttribute(name));
-                    });
-                    break;
-                }
-                case 'setAttributeNS': {
-                    const [ namespace, name ] = args;
-                    const key = `attr:${namespace}:${name}`;
-                    restorable.once(key, () => {
-                        const oldVal = targetNode.getAttributeNS(namespace, name);
-                        return targetNode.hasAttributeNS(namespace, name)
-                            ? restorable.pushUndo(() => targetNode.setAttributeNS(namespace, name, oldVal))
-                            : restorable.pushUndo(() => targetNode.removeAttributeNS(namespace, name));
-                    });
-                    break;
-                }
-                case 'addEventListener': {
-                    const sameArgs = args.slice(0, 3);
-                    restorable.pushUndo(() => targetNode.removeEventListener(...sameArgs));
-                    break;
-                }
-                case 'attachEvent': {
-                    const sameArgs = args.slice(0, 2);
-                    restorable.pushUndo(() => targetNode.detachEvent(...sameArgs));
-                    break;
-                }
-                default: {
-                    if (fnName.startsWith('get') || fnName.startsWith('has')) {
-                        debug.log(`WARNING: cannot undo operation: <${targetNode.tagName}/>${fnName}()`);
-                    }
-                }
-            }
-            return targetfn.apply(targetNode, args);
-        },
-    };
 }
