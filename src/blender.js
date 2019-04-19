@@ -5,6 +5,7 @@ import { attachToDOM, detachFromDOM } from './attach';
 import { proxyDOMObject, unwrapDOMProxyArgs, updateDOMProxy } from './proxydom';
 import { createVNode } from './vnode';
 import { createDOMNodeRestorable, createDOMStylesRestorable } from './restore';
+import { createOnce } from './once';
 
 /**
  * Blend generated React DOM tree with an already existing DOM.
@@ -91,18 +92,14 @@ function blendDOMNode(domNode, opts) {
     opts = opts || {};
     const vnode = createVNode(domNode);
     const restorable = createDOMNodeRestorable();
-    const _once = {};
+    const once = createOnce();
     const blendDOMNode = proxyDOMObject(domNode, {
         override: {
             'ownerDocument': { 
-                get: (_, propName) => (propName in _once) 
-                    ? _once[propName] 
-                    : (_once[propName] = blendDOMDocument(domNode[propName]))
+                get: (_, propName) => once(propName, () => blendDOMDocument(domNode[propName]))
             },
             'style': { 
-                get: (_, propName) => (propName in _once) 
-                    ? _once[propName] 
-                    : (_once[propName] = blendDOMStyles(vnode, restorable))
+                get: (_, propName) => once(propName, () => blendDOMStyles(vnode, restorable))
             },
             'appendChild': {
                 invoke: (_, fnName, targetfn, args) => {

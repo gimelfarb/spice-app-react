@@ -1,11 +1,12 @@
 import debug from './debug';
+import { createOnce } from './once';
 
 /**
  * Stores a list of all undo operations to perform to restore object to the original state.
  * 
  * @typedef {object} Restorable
  * @prop {() => Restorable} createNew Creates new instance of same type of Restorable
- * @prop {(key: any, cb: () => void)} once Executes callback only once for the given key, returns saved value
+ * @prop {import('./once').OnceDispatch<any>} once Executes callback only once for the given key, returns saved value
  * @prop {(name: string, factory?: () => Restorable) => Restorable} sub Returns child restorable for the given key (for sub-properties)
  * @prop {(cb: () => void)} pushUndo Push an undo operation to perform during restore
  * @prop {() => void} restore Replay all undo operations
@@ -19,16 +20,14 @@ import debug from './debug';
  */
 export function createRestorable() {
     const _undo = [];
-    const _once = {};
+    const _once = createOnce();
     return {
         // Creates new instance of this type of Restorable
         createNew() {
             return createRestorable();
         },
         // Executes callback only once for the given key, returns saved value
-        once(key, cb) {
-            return (key in _once) ? _once[key] : (_once[key] = cb());
-        },
+        once: _once,
         // Returns child restorable for the given key (for sub-properties)
         sub(name, factory) {
             return this.once('sub:' + name, () => {
