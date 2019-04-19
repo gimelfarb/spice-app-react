@@ -103,7 +103,13 @@ export function proxyDOMObject(domObj, opts) {
         propNames.forEach((propName) => proxyProperty(propName));
     }
     // Optionally extend with some properties
-    Object.assign(proxyObj, opts.extend);
+    if (opts.extend) {
+        Object.assign(proxyObj, opts.extend);
+        // Note: Object.assign(...) implementations can be naive, in that they won't
+        // copy over Symbol properties, so we make sure we pick them up manually
+        Object.getOwnPropertySymbols(opts.extend).forEach(skey => proxyObj[skey] = opts.extend[skey]);
+    }
+
     return proxyObj; 
 }
 

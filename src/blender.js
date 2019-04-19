@@ -20,7 +20,9 @@ import { createOnce } from './once';
  */
 export function blend(element, container) {
     const blended = blendDOMRoot(container);
-    const traced = debug.enabled ? traceUse(blended, 'domRoot', { logger: debug.log, get: false }) : blended;
+    const traced = debug.enabled 
+        ? traceUse(blended, 'domRoot', { logger: debug.log, get: false, untraceFuncArgs: true }) 
+        : blended;
     ReactDOM.render(element, traced);
 }
 

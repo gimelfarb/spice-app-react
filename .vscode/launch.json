@@ -11,6 +11,19 @@
             "url": "http://localhost:8080",
             "webRoot": "${workspaceFolder}",
             "preLaunchTask": "npm: start:dev"
-        }
+        },
+        {
+          "type": "node",
+          "protocol": "inspector",
+          "request": "launch",
+          "name": "Launch test files with TestCafe",
+          "program": "${workspaceRoot}/node_modules/testcafe/bin/testcafe.js",
+          "args": [
+              "chrome",
+              "${relativeFile}"
+          ],
+          "console": "integratedTerminal",
+          "cwd": "${workspaceRoot}"
+      }
     ]
 }

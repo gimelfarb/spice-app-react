@@ -22,7 +22,7 @@ export function traceUse(obj, name, opts) {
         if (opts.logger) {
             opts.logger(`[CALL] ${name}()`);
         }
-        if (/\[native code\]/.test(target.toString())) {
+        if (opts.untraceFuncArgs || /\[native code\]/.test(target.toString())) {
             args = Array.prototype.slice.call(args);
             args = args.map(v => removeTrace(v));
         }
