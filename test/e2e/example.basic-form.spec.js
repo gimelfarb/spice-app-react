@@ -11,7 +11,7 @@ test('Test renders correct structure', async (t) => {
 });
 
 test('Test agreement checkbox changes color', async (t) => {
-    const labelAgreement = Selector('label[for="agreement"]');
+    const labelAgreement = Selector('label#label-agreement');
     let labelAgreementStyle = await labelAgreement.style;
 
     await t.expect(labelAgreementStyle['color']).eql('rgb(255, 0, 0)');
