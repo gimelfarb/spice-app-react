@@ -1,36 +1,81 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Spice App Example: basic-form</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.4/css/bulma.min.css">
+    <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
   </head>
   <body>
-    <form>
-        <div>
-            <input name="name" type="text" />
-        </div>
-        <div>
-            <input name="phone" type="tel" />
-        </div>
-        <div>
-            <label for="status">Status:</label>
-            <select name="status">
-                <option>Please select</option>
-                <option value="single">Single</option>
-                <option value="married">Married</option>
-                <option value="other">Other</option>
-            </select>
-            <div>
-                <input name="statusText" type="text" placeholder="Please specify" />
-                <label for="statusText" style="display: none">(* need to know the status)</label>
+    <main class="section">
+      <div class="container" style="max-width: 450px">
+        <form style="width: 100%">
+          <div class="panel">
+            <div class="panel-heading">Sign up</div>
+            <div class="panel-block">
+              <div style="width: 100%">
+                <div class="field">
+                  <label class="label">Name</label>
+                  <div class="control has-icons-left">
+                      <input class="input" name="name" type="text" />
+                      <span class="icon is-small is-left">
+                        <i class="fas fa-user"></i>
+                      </span>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="label">Phone</label>
+                  <div class="control has-icons-left">
+                      <input class="input" name="phone" type="tel" />
+                      <span class="icon is-small is-left">
+                        <i class="fas fa-phone"></i>
+                      </span>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="label" for="status">Status:</label>
+                  <div class="control has-icons-left">
+                    <div class="select is-rounded">
+                      <select name="status">
+                        <option>Please select</option>
+                        <option value="single">Single</option>
+                        <option value="married">Married</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <span class="icon is-small is-left">
+                      <i class="fas fa-user-friends"></i>
+                    </span>
+                  </div>
+                </div>
+                <div id="field-status-other" class="field">
+                  <div class="control has-icons-left">
+                    <input class="input" name="statusText" type="text" placeholder="Please specify" />
+                    <span class="icon is-small is-left">
+                      <i class="fas fa-user-friends"></i>
+                    </span>
+                  </div>
+                  <label class="help is-danger" for="statusText" style="display: none">(* need to know the status)</label>
+                </div>
+                <div class="field">
+                  <label id="label-agreement" class="checkbox">
+                    <input name="agreement" type="checkbox" />
+                    Agree to Terms & Conditions?
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div class="panel-block">
+              <div style="width: 100%">
+                <div class="field is-grouped is-grouped-centered">
+                  <button class="button is-success is-fullwidth" name="submit" type="submit">Submit</button>
+                </div>
+              </div>  
             </div>
         </div>
-        <div>
-            <label for="agreement">Agree to Terms & Conditions?</label>
-            <input name="agreement" type="checkbox" />
-        </div>
-        <div>
-            <button name="submit" type="submit">Submit</button>
-        </div>
-    </form>
+        </form>
+      </div>
+    </main>
   </body>
 </html>

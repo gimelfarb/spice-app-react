@@ -24,11 +24,13 @@ export default function Form() {
             <input name="phone" onChange={onChange}/>
 
             <select name="status" onChange={onStatusChange}/>
-            <input name="statusText" hidden={!isStatusOther} />
+            <div id="field-status-other" hidden={!isStatusOther}>
+               <input name="statusText" />
+            </div>
 
             {isStatusOther ? <label htmlFor="statusText" style={{ display: 'block', color: 'blue' }} /> : null}
 
-            <label htmlFor="agreement" style={{ color: isAgreed ? 'green' : 'red' }} />
+            <label id="label-agreement" style={{ color: isAgreed ? 'green' : 'red' }} />
             <input name="agreement" onChange={onAgreementChange} />
 
             <button type="submit" onClick={onSubmit} />
