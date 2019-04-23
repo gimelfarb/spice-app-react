@@ -3,7 +3,7 @@ import debug from './debug';
 import { traceUse } from './trace';
 import { attachToDOM, detachFromDOM } from './attach';
 import { proxyDOMObject, unwrapDOMProxyArgs, updateDOMProxy } from './proxydom';
-import { createVNode } from './vnode';
+import { createVNode, VNodeState } from './vnode';
 import { createDOMNodeRestorable, createDOMStylesRestorable } from './restore';
 import { createOnce } from './once';
 
@@ -106,23 +106,26 @@ function blendDOMNode(domNode, opts) {
             },
             'appendChild': {
                 invoke: (_, fnName, targetfn, args) => {
-                    debug.log(`[CALL] <${domNode.tagName}\\>.${fnName}*()`, args);
+                    debug.log(`[CALL] <${domNode.tagName}/>.${fnName}*()`, args);
                     const [domChild] = args;
                     /** @type {import('./vnode').VNode} */
                     const vnodeChild = domChild[blendVNode];
                     if (vnodeChild) { 
                         vnode.children.push(vnodeChild);
                         vnodeChild.reconcile();
-                        if (vnode.attached) {
+                        if (vnode.state !== VNodeState.PENDING) {
+                            checkVNodeNotDetached(vnode);
                             vnode.dispatch((targetNode) => attachToDOM(targetNode, vnodeChild));
+                            return domChild;
                         }
                     }
-                    return targetfn.apply(domNode, unwrapDOMProxyArgs(args));
+                    targetfn.apply(domNode, unwrapDOMProxyArgs(args));
+                    return domChild;
                 }
             },
             'insertBefore': {
                 invoke: (_, fnName, targetfn, args) => {
-                    debug.log(`[CALL] <${domNode.tagName}\\>.${fnName}*()`, args);
+                    debug.log(`[CALL] <${domNode.tagName}/>.${fnName}*()`, args);
                     const [domChild, beforeChild] = args;
                     /** @type {import('./vnode').VNode} */
                     const vnodeChild = domChild[blendVNode];
@@ -132,30 +135,36 @@ function blendDOMNode(domNode, opts) {
                         const i = vnode.children.indexOf(vnodeBeforeChild);
                         vnode.children.splice(i, 0, vnodeChild);
                         vnodeChild.reconcile();
-                        if (vnode.attached) {
+                        if (vnode.state !== VNodeState.PENDING) {
                             // TODO: attachToDOM doesn't take beforeChild as reference... hmmm??
+                            checkVNodeNotDetached(vnode);
+                            checkVNodeNotDetached(vnodeBeforeChild);
                             vnode.dispatch((targetNode) => 
                                 vnodeBeforeChild.dispatch((targetBefore) => attachToDOM(targetNode, vnodeChild, targetBefore)));
+                            return domChild;
                         }
                     }
-                    return targetfn.apply(domNode, unwrapDOMProxyArgs(args));
+                    targetfn.apply(domNode, unwrapDOMProxyArgs(args));
+                    return domChild;
                 }
             },
             'removeChild': {
                 invoke: (_, fnName, targetfn, args) => {
-                    debug.log(`[CALL] <${domNode.tagName}\\>.${fnName}*()`, args);
+                    debug.log(`[CALL] <${domNode.tagName}/>.${fnName}*()`, args);
                     const [domChild] = args;
                     /** @type {import('./vnode').VNode} */
                     const vnodeChild = domChild[blendVNode];
-                    targetfn.apply(domNode, unwrapDOMProxyArgs(args));
                     if (vnodeChild) {
                         const i = vnode.children.indexOf(vnodeChild);
                         if (i >= 0) { vnode.children.splice(i, 1); }
-                        if (vnode.attached) {
+                        if (vnode.state !== VNodeState.PENDING) {
+                            checkVNodeNotDetached(vnode);
                             detachFromDOM(vnodeChild);
+                            return domChild;
                         }
                         vnodeChild.detach();
                     }
+                    targetfn.apply(domNode, unwrapDOMProxyArgs(args));
                     return domChild;
                 }
             },
@@ -163,13 +172,19 @@ function blendDOMNode(domNode, opts) {
         },
         default: {
             set: (_, propName, val) => {
-                debug.log(`[SET ] <${domNode.tagName}\\>.${propName}`, val);
-                vnode.dispatch((targetNode) => restorable.set(targetNode, propName, val));
+                debug.log(`[SET ] <${domNode.tagName}/>.${propName}`, val);
+                if (vnode.state !== VNodeState.DIRECT) {
+                    checkVNodeNotDetached(vnode);
+                    vnode.dispatch((targetNode) => restorable.set(targetNode, propName, val));
+                }
                 domNode[propName] = val;
             },
             invoke: (_, fnName, targetfn, args) => {
-                debug.log(`[CALL] <${domNode.tagName}\\>.${fnName}()`, args);
-                vnode.dispatch((targetNode) => restorable.invoke(targetNode, fnName, targetfn, args));
+                debug.log(`[CALL] <${domNode.tagName}/>.${fnName}()`, args);
+                if (vnode.state !== VNodeState.DIRECT) {
+                    checkVNodeNotDetached(vnode);
+                    vnode.dispatch((targetNode) => restorable.invoke(targetNode, fnName, targetfn, args));
+                }
                 return targetfn.apply(domNode, args);
             },
         },
@@ -231,15 +246,30 @@ function blendDOMStyles(vnode, restorable) {
     return proxyDOMObject(domNode.style, {
        default: {
             set: (_, propName, val) => {
-                debug.log(`[SET ] <${domNode.tagName}\\>.style.${propName}`, val);
-                vnode.dispatch((targetNode) => restorableStyle.set(targetNode.style, propName, val));
+                debug.log(`[SET ] <${domNode.tagName}/>.style.${propName}`, val);
+                if (vnode.state !== VNodeState.DIRECT) {
+                    checkVNodeNotDetached(vnode);
+                    vnode.dispatch((targetNode) => restorableStyle.set(targetNode.style, propName, val));
+                }
                 domNode.style[propName] = val;
             },
             invoke: (_, fnName, targetfn, args) => {
-                debug.log(`[CALL] <${domNode.tagName}\\>.style.${fnName}()`, args);
-                vnode.dispatch((targetNode) => restorableStyle.invoke(targetNode.style, fnName, targetfn, args));
+                debug.log(`[CALL] <${domNode.tagName}/>.style.${fnName}()`, args);
+                if (vnode.state !== VNodeState.DIRECT) {
+                    checkVNodeNotDetached(vnode);
+                    vnode.dispatch((targetNode) => restorableStyle.invoke(targetNode.style, fnName, targetfn, args));
+                }
                 return targetfn.apply(domNode.style, args);
             },
         }
     });
+}
+
+/**
+ * Check VNode is not detached - log warning
+ * @param {import('./vnode').VNode} vnode 
+ */
+function checkVNodeNotDetached(vnode) {
+    (vnode.state !== VNodeState.DETACHED)
+        || debug.log(`WARNING: Attempt to use detached vnode (<${vnode.domNode.tagName}/>)`);
 }
