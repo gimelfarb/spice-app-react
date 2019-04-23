@@ -60,6 +60,7 @@ function blendDOMRoot(domRoot) {
                     debug.log('[CALL] domRoot.appendChild*()', args);
                     const [ domChild ] = args;
                     const vtree = domChild[blendVNode];
+                    vtree.reconcile();
                     attachToDOM(domRoot, vtree);
                     return domChild;
                 }
