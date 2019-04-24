@@ -85,8 +85,9 @@ function makeSelector(domNode) {
     } else {
         switch (domNode.tagName.toLowerCase()) {
             case 'button':
-                // We might match a button by 'type' attribute, but it only
-                // works if there are not multiple buttons of same type
+            case 'input':
+                // We might match a input/button by 'type' attribute, but it only
+                // works if there are not multiple elements of same type
                 if (domNode.type) {
                     return `${domNode.tagName}[type="${domNode.type}"]`;
                 }
