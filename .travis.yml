@@ -5,8 +5,9 @@ node_js:
 # Do not trigger builds on tags
 if: tag IS blank
 
+# Travis CI will do npm install by default
+
 # Build & Test in the 'test' stage
-install: npm install
 script: 
   - npm run build
   - npm run test
