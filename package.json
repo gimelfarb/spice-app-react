@@ -2,6 +2,10 @@
   "name": "spice-app-react",
   "version": "0.1.0",
   "description": "Blend React functionality with existing DOM",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gimelfarb/spice-app-react.git"
+  },
   "main": "index.js",
   "module": "src/index.js",
   "scripts": {
@@ -23,9 +27,7 @@
   "license": "ISC",
   "files": [
     "dist/",
-    "index.js",
-    "LICENSE.md",
-    "README.md"
+    "index.js"
   ],
   "browserslist": [
     "last 1 version",
