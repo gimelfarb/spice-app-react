@@ -5,17 +5,11 @@ node_js:
 # Do not trigger builds on tags
 if: tag IS blank
 
-# By default, Travis CI will run a matrix of jobs
-# in the 'test' stage using defaults:
+# Build & Test in the 'test' stage
 install: npm install
 script: 
   - npm run build
   - npm run test
-
-stages:
-  - test
-  - name: deploy
-    if: branch = master
 
 # Configuring Travis CI environment to be able to run
 # TestCafe tests in a headless browser
@@ -43,10 +37,8 @@ before_script:
 
 # Deployment using semantic-release
 
-jobs:
-  include:
-    # Deploy stage will only execute on master branch (see above)
-    - stage: deploy
-      install: skip
-      script: npx semantic-release
-      after_script: skip
+deploy:
+  provider: script
+  script: npx semantic-release
+  on:
+    branch: master
