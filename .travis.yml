@@ -7,8 +7,10 @@ if: tag IS blank
 
 # By default, Travis CI will run a matrix of jobs
 # in the 'test' stage using defaults:
-# install: npm install
-# script: npm run test
+install: npm install
+script: 
+  - npm run build
+  - npm run test
 
 stages:
   - test
