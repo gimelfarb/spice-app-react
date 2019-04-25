@@ -35,3 +35,6 @@ coverage/
 # Private notepad
 NOTES
 .snippets/
+
+# Webpack output
+dist/
