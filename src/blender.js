@@ -53,15 +53,32 @@ function blendDOMRoot(domRoot) {
             document.body.appendChild(blendRoot);
         }
     }
+
+    const vnodeRoot = createVNode(domRoot);
+    vnodeRoot.targetSelf();
+    
     return blendDOMNode(blendRoot, {
         override: {
             'appendChild': {
                 invoke: (_, _fnName, _targetfn, args) => {
                     debug.log('[CALL] domRoot.appendChild*()', args);
                     const [ domChild ] = args;
-                    const vtree = domChild[blendVNode];
-                    vtree.reconcile();
-                    attachToDOM(domRoot, vtree);
+                    const vnodeChild = domChild[blendVNode];
+                    vnodeChild.reconcile();
+                    vnodeRoot.children.append(vnodeChild);
+                    attachToDOM(vnodeChild);
+                    return domChild;
+                }
+            },
+            'insertBefore': {
+                invoke: (_, _fnName, _targetfn, args) => {
+                    debug.log('[CALL] domRoot.insertBefore*()', args);
+                    const [ domChild, beforeChild ] = args;
+                    const vnodeChild = domChild[blendVNode];
+                    const vnodeBeforeChild = beforeChild[blendVNode];
+                    vnodeChild.reconcile();
+                    vnodeRoot.children.insertBefore(vnodeChild, vnodeBeforeChild);
+                    attachToDOM(vnodeChild, vnodeBeforeChild);
                     return domChild;
                 }
             },
@@ -69,8 +86,9 @@ function blendDOMRoot(domRoot) {
                 invoke: (_, _fnName, _targetfn, args) => {
                     debug.log('[CALL] domRoot.removeChild*()', args);
                     const [ domChild ] = args;
-                    const vtree = domChild[blendVNode];
-                    detachFromDOM(vtree);
+                    const vnodeChild = domChild[blendVNode];
+                    detachFromDOM(vnodeChild);
+                    vnodeRoot.children.remove(vnodeChild);
                     return domChild;
                 }
             }
@@ -111,11 +129,11 @@ function blendDOMNode(domNode, opts) {
                     /** @type {import('./vnode').VNode} */
                     const vnodeChild = domChild[blendVNode];
                     if (vnodeChild) { 
-                        vnode.children.push(vnodeChild);
+                        vnode.children.append(vnodeChild);
                         vnodeChild.reconcile();
                         if (vnode.state !== VNodeState.PENDING) {
                             checkVNodeNotDetached(vnode);
-                            vnode.dispatch((targetNode) => attachToDOM(targetNode, vnodeChild));
+                            attachToDOM(vnodeChild);
                             return domChild;
                         }
                     }
@@ -132,15 +150,12 @@ function blendDOMNode(domNode, opts) {
                     /** @type {import('./vnode').VNode} */
                     const vnodeBeforeChild = beforeChild[blendVNode];
                     if (vnodeChild) {
-                        const i = vnode.children.indexOf(vnodeBeforeChild);
-                        vnode.children.splice(i, 0, vnodeChild);
+                        vnode.children.insertBefore(vnodeChild, vnodeBeforeChild);
                         vnodeChild.reconcile();
                         if (vnode.state !== VNodeState.PENDING) {
-                            // TODO: attachToDOM doesn't take beforeChild as reference... hmmm??
                             checkVNodeNotDetached(vnode);
                             checkVNodeNotDetached(vnodeBeforeChild);
-                            vnode.dispatch((targetNode) => 
-                                vnodeBeforeChild.dispatch((targetBefore) => attachToDOM(targetNode, vnodeChild, targetBefore)));
+                            attachToDOM(vnodeChild, vnodeBeforeChild);
                             return domChild;
                         }
                     }
@@ -155,8 +170,7 @@ function blendDOMNode(domNode, opts) {
                     /** @type {import('./vnode').VNode} */
                     const vnodeChild = domChild[blendVNode];
                     if (vnodeChild) {
-                        const i = vnode.children.indexOf(vnodeChild);
-                        if (i >= 0) { vnode.children.splice(i, 1); }
+                        vnode.children.remove(vnodeChild);
                         if (vnode.state !== VNodeState.PENDING) {
                             checkVNodeNotDetached(vnode);
                             detachFromDOM(vnodeChild);
@@ -211,7 +225,26 @@ function blendDOMNode(domNode, opts) {
     vnode.restore = () => {
         restorable.restore();
     };
+    vnode.toString = () => `<${domNode.tagName}/>`;
     return blendDOMNode;
+}
+
+function blendDOMTextNode(domTextNode) {
+    const vnode = createVNode(domTextNode);
+    const once = createOnce();
+    const blendDOMTextNode = proxyDOMObject(domTextNode, {
+        override: {
+            'ownerDocument': { 
+                get: (_, propName) => once(propName, () => blendDOMDocument(domTextNode[propName]))
+            },
+        },
+        extend: {
+            [blendVNode]: vnode,
+        }
+    });
+    vnode.reconcile = () => {};
+    vnode.toString = () => `text("${domTextNode.wholeText}")`;
+    return blendDOMTextNode;
 }
 
 /**
@@ -226,6 +259,12 @@ function blendDOMDocument(domDocument) {
                 invoke: (_, _fnName, targetfn, args) => {
                     debug.log('[CALL] domRoot.ownerDocument.createElement()', args);
                     return blendDOMNode(targetfn.apply(domDocument, args));
+                }
+            },
+            'createTextNode': {
+                invoke: (_, _fnName, targetfn, args) => {
+                    debug.log('[CALL] domRoot.ownerDocument.createTextNode()', args);
+                    return blendDOMTextNode(targetfn.apply(domDocument, args));
                 }
             }
         }
@@ -271,5 +310,5 @@ function blendDOMStyles(vnode, restorable) {
  */
 function checkVNodeNotDetached(vnode) {
     (vnode.state !== VNodeState.DETACHED)
-        || debug.log(`WARNING: Attempt to use detached vnode (<${vnode.domNode.tagName}/>)`);
+        || debug.log(`WARNING: Attempt to use detached vnode (${vnode.toString()})`);
 }

@@ -9,7 +9,8 @@
 /**
  * @typedef {object} VNode
  * @property {Element} domNode
- * @property {VNode[]} children
+ * @property {VNode} parent
+ * @property {VNodeChildren} children
  * @property {VNodeState} state
  * @property {(fn: VNodeOp) => void} dispatch
  * @property {(targetNode: Element) => void} attach
@@ -26,19 +27,29 @@ export const VNodeState = Object.freeze({
     DETACHED: 'detached'
 });
 
+const vnodeSetParent = Symbol('vnode set parent');
+
 /**
  * 
  * @param {Element} domNode 
  * @returns {VNode}
  */
 export function createVNode(domNode) {
-    const _children = [];
+    let _parent;
+    let _children;
     let _pendingDispatch = [];
     let _targetNode;
     let _state = VNodeState.PENDING;
-    return {
-        domNode,
-        children: _children,
+    const vnode = {
+        get domNode() {
+            return domNode;
+        },
+        get parent() {
+            return _parent;
+        },
+        get children() {
+            return _children || (_children = createVNodeChildren(vnode));
+        },
         dispatch(fn) {
             _targetNode ? fn(_targetNode) : (_pendingDispatch && _pendingDispatch.push(fn));
         },
@@ -60,6 +71,58 @@ export function createVNode(domNode) {
         },
         get state() {
             return _state;
+        },
+        [vnodeSetParent](parent) {
+            if (_parent && parent && _parent !== parent) {
+                _parent.children.remove(vnode);
+            }
+            _parent = parent;
         }
     };
+    return vnode;
+}
+
+/**
+ * @typedef {object} VNodeChildren
+ * @property {number} length
+ * @property {(index: number) => VNode} item
+ * @property {(vnodeChild: VNode) => void} append
+ * @property {(vnodeChild: VNode, vnodeBeforeChild: VNode) => void} insertBefore
+ * @property {(vnodeChild: VNode) => void} remove
+ * @property {(cb: (value: VNode, index: number) => any) => any[]} map
+ */
+
+/**
+ * 
+ * @param {VNode} vnode Parent vnode
+ */
+function createVNodeChildren(vnode) {
+    const _children = [];
+    return {
+        get length() {
+            return _children.length;
+        },
+        item(index) {
+            return _children[index];
+        },
+        append(vnodeChild) {
+            _children.push(vnodeChild);
+            vnodeChild[vnodeSetParent](vnode);
+        },
+        insertBefore(vnodeChild, vnodeBeforeChild) {
+            const i = _children.indexOf(vnodeBeforeChild);
+            _children.splice(i, 0, vnodeChild);
+            vnodeChild[vnodeSetParent](vnode);
+        },
+        remove(vnodeChild) {
+            const i = _children.indexOf(vnodeChild);
+            if (i >= 0) { 
+                _children.splice(i, 1);
+                vnodeChild[vnodeSetParent](undefined);
+            }
+        },
+        map(cb) {
+            return _children.map(cb);
+        }
+    }
 }
