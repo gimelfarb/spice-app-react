@@ -69,8 +69,8 @@ Checkout the [sample app](TODO) on how to set that up!
 
 ### Intro App ("Inspirations")
 
-You can see this example live at: <https://intro-spice-app.surge.sh>
-And check the source code at: <TODO>
+You can see this example live at: <https://spice-app-react-intro.surge.sh>
+And check the source code at: <https://github.com/gimelfarb/spice-app-react-intro>
 
 Imagine the following static HTML:
 
@@ -85,9 +85,9 @@ Imagine the following static HTML:
     <title>Inspirations</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.4/css/bulma.min.css">
     <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
-    <style>.preload .preload-hidden { visibility: hidden; }</style>
+    <style>.preload-hidden { visibility: hidden; }</style>
   </head>
-  <body class="preload">
+  <body>
     <section class="hero is-primary is-bold is-fullheight">
       <div class="hero-body">
         <div id="main" class="container has-text-centered">
@@ -175,12 +175,11 @@ function Quote({visible, text, author}) {
     </blockquote>
   );
 }
-
 ```
 
 For more usage patterns, checkout `/examples` folder.
 
-### Remote Static Design
+### Remote Static Design (e.g. Webflow)
 
 For a minimal app using remotely hosted design, checkout ... (TODO repo).
 
