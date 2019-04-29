@@ -197,6 +197,7 @@ function blendDOMNode(domNode, opts) {
                 debug.log(`[CALL] <${domNode.tagName}/>.${fnName}()`, args);
                 if (vnode.state !== VNodeState.DIRECT) {
                     checkVNodeNotDetached(vnode);
+                    if (interceptDOMNodeInvoke(vnode, fnName, targetfn, args)) return;
                     vnode.dispatch((targetNode) => restorable.invoke(targetNode, fnName, targetfn, args));
                 }
                 return targetfn.apply(domNode, args);
@@ -311,4 +312,26 @@ function blendDOMStyles(vnode, restorable) {
 function checkVNodeNotDetached(vnode) {
     (vnode.state !== VNodeState.DETACHED)
         || debug.log(`WARNING: Attempt to use detached vnode (${vnode.toString()})`);
+}
+
+const SPICE_DATA_ATTR_PREFIX = 'data-spice-';
+
+/**
+ * Intercept certain DOM calls (like setAttribute) to manipulate
+ * internal Spice data.
+ * 
+ * @param {import('./vnode').VNode} vnode 
+ * @param {string} fnName 
+ * @param {Function} _targetfn 
+ * @param {any[]} args 
+ */
+function interceptDOMNodeInvoke(vnode, fnName, _targetfn, args) {
+    if (fnName === 'setAttribute') {
+        const [name, value] = args;
+        if (name && name.startsWith(SPICE_DATA_ATTR_PREFIX)) {
+            const key = name.substring(SPICE_DATA_ATTR_PREFIX.length);
+            vnode.data[key] = value;
+            return true;
+        }
+    }
 }

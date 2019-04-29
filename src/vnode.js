@@ -12,6 +12,7 @@
  * @property {VNode} parent
  * @property {VNodeChildren} children
  * @property {VNodeState} state
+ * @property {object} data
  * @property {(fn: VNodeOp) => void} dispatch
  * @property {(targetNode: Element) => void} attach
  * @property {() => void} targetSelf
@@ -40,6 +41,7 @@ export function createVNode(domNode) {
     let _pendingDispatch = [];
     let _targetNode;
     let _state = VNodeState.PENDING;
+    let _data = {};
     const vnode = {
         get domNode() {
             return domNode;
@@ -71,6 +73,9 @@ export function createVNode(domNode) {
         },
         get state() {
             return _state;
+        },
+        get data() {
+            return _data;
         },
         [vnodeSetParent](parent) {
             if (_parent && parent && _parent !== parent) {
