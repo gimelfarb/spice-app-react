@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "jsx": "react",
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "spice-app-react": ["../.."]
+    }
+  },
+  "include": ["src/**/*"]
+}
