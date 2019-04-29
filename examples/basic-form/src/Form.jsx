@@ -19,7 +19,7 @@ export default function Form() {
     }
 
     return (
-        <form>
+        <form data-spice-selector="main form">
             <input name="name" onChange={onChange}/>
             <input name="phone" onChange={onChange}/>
 
