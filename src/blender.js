@@ -210,7 +210,14 @@ function blendDOMNode(domNode, opts) {
             },
         },
         extend: {
-            [blendVNode]: vnode,
+            [blendVNode]: { value: vnode },
+            'blendTargetNode': {
+                get: () => {
+                    let targetNode;
+                    vnode.dispatch((target) => targetNode = target);
+                    return targetNode;
+                }
+            },
         }
     });
     let _reconciled = false;
@@ -246,7 +253,7 @@ function blendDOMTextNode(domTextNode) {
             },
         },
         extend: {
-            [blendVNode]: vnode,
+            [blendVNode]: { value: vnode },
         }
     });
     vnode.reconcile = () => {};
