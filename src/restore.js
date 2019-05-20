@@ -130,6 +130,26 @@ export function createDOMNodeRestorable() {
                     });
                     break;
                 }
+                // For removeAttribute() the undo is to add attribute back
+                case 'removeAttribute': {
+                    const [ name ] = args;
+                    const key = `attr:${name}`;
+                    restorable.once(key, () => {
+                        const oldVal = targetNode.getAttribute(name);
+                        restorable.pushUndo(() => targetNode.setAttribute(name, oldVal));
+                    });
+                    break;
+                }
+                // For removeAttributeNS() the undo is to add attribute back
+                case 'removeAttributeNS': {
+                    const [ namespace, name ] = args;
+                    const key = `attr:${namespace}:${name}`;
+                    restorable.once(key, () => {
+                        const oldVal = targetNode.getAttributeNS(namespace, name);
+                        restorable.pushUndo(() => targetNode.setAttributeNS(namespace, name, oldVal));
+                    });
+                    break;
+                }
                 // For addEventListener the undo is to remove the event listener
                 case 'addEventListener': {
                     const sameArgs = args.slice(0, 3);
@@ -144,8 +164,10 @@ export function createDOMNodeRestorable() {
                 }
                 default: {
                     // Debug logging for operations we might be missing
-                    if (fnName.startsWith('get') || fnName.startsWith('has')) {
-                        debug.log(`WARNING: cannot undo operation: <${targetNode.tagName}/>${fnName}()`);
+                    if (!fnName.startsWith('get') &&
+                        !fnName.startsWith('has') &&
+                        !fnName.startsWith('query')) {
+                        debug.log(`WARNING: cannot undo operation: <${targetNode.tagName}/>.${fnName}()`);
                     }
                 }
             }
