@@ -8,6 +8,11 @@ import { createDOMNodeRestorable, createDOMStylesRestorable } from './restore';
 import { createOnce } from './once';
 
 /**
+ * @typedef BlendOpts
+ * @property {boolean} traceUse enable low-level tracing (useful for spice-app own development)
+ */
+
+/**
  * Blend generated React DOM tree with an already existing DOM.
  * Matches each generated React DOM node with an existing one in
  * the hierarchy, and merges them together.
@@ -17,10 +22,11 @@ import { createOnce } from './once';
  * 
  * @param {import('react').ReactNode} element 
  * @param {Element} container 
+ * @param {BlendOpts} [opts]
  */
-export function blend(element, container) {
+export function blend(element, container, opts) {
     const blended = blendDOMRoot(container);
-    const traced = debug.enabled 
+    const traced = (debug.enabled && opts && opts.traceUse)
         ? traceUse(blended, 'domRoot', { logger: debug.log, get: false, untraceFuncArgs: true }) 
         : blended;
     ReactDOM.render(element, traced);
@@ -61,7 +67,7 @@ function blendDOMRoot(domRoot) {
         override: {
             'appendChild': {
                 invoke: (_, _fnName, _targetfn, args) => {
-                    debug.log('[CALL] domRoot.appendChild*()', args);
+                    vnodeRoot.data['log'] && debug.log('[CALL] domRoot.appendChild*()', args);
                     const [ domChild ] = args;
                     const vnodeChild = domChild[blendVNode];
                     vnodeChild.reconcile();
@@ -72,7 +78,7 @@ function blendDOMRoot(domRoot) {
             },
             'insertBefore': {
                 invoke: (_, _fnName, _targetfn, args) => {
-                    debug.log('[CALL] domRoot.insertBefore*()', args);
+                    vnodeRoot.data['log'] && debug.log('[CALL] domRoot.insertBefore*()', args);
                     const [ domChild, beforeChild ] = args;
                     const vnodeChild = domChild[blendVNode];
                     const vnodeBeforeChild = beforeChild[blendVNode];
@@ -84,7 +90,7 @@ function blendDOMRoot(domRoot) {
             },
             'removeChild': {
                 invoke: (_, _fnName, _targetfn, args) => {
-                    debug.log('[CALL] domRoot.removeChild*()', args);
+                    vnodeRoot.data['log'] && debug.log('[CALL] domRoot.removeChild*()', args);
                     const [ domChild ] = args;
                     const vnodeChild = domChild[blendVNode];
                     detachFromDOM(vnodeChild);
@@ -117,14 +123,14 @@ function blendDOMNode(domNode, opts) {
     const blendDOMNode = proxyDOMObject(domNode, {
         override: {
             'ownerDocument': { 
-                get: (_, propName) => once(propName, () => blendDOMDocument(domNode[propName]))
+                get: (_, propName) => once(propName, () => blendDOMDocument(vnode))
             },
             'style': { 
                 get: (_, propName) => once(propName, () => blendDOMStyles(vnode, restorable))
             },
             'appendChild': {
                 invoke: (_, fnName, targetfn, args) => {
-                    debug.log(`[CALL] <${domNode.tagName}/>.${fnName}*()`, args);
+                    vnode.data['log'] && debug.log(`[CALL] <${domNode.tagName}/>.${fnName}*()`, args);
                     const [domChild] = args;
                     /** @type {import('./vnode').VNode} */
                     const vnodeChild = domChild[blendVNode];
@@ -143,7 +149,7 @@ function blendDOMNode(domNode, opts) {
             },
             'insertBefore': {
                 invoke: (_, fnName, targetfn, args) => {
-                    debug.log(`[CALL] <${domNode.tagName}/>.${fnName}*()`, args);
+                    vnode.data['log'] && debug.log(`[CALL] <${domNode.tagName}/>.${fnName}*()`, args);
                     const [domChild, beforeChild] = args;
                     /** @type {import('./vnode').VNode} */
                     const vnodeChild = domChild[blendVNode];
@@ -165,7 +171,7 @@ function blendDOMNode(domNode, opts) {
             },
             'removeChild': {
                 invoke: (_, fnName, targetfn, args) => {
-                    debug.log(`[CALL] <${domNode.tagName}/>.${fnName}*()`, args);
+                    vnode.data['log'] && debug.log(`[CALL] <${domNode.tagName}/>.${fnName}*()`, args);
                     const [domChild] = args;
                     /** @type {import('./vnode').VNode} */
                     const vnodeChild = domChild[blendVNode];
@@ -186,7 +192,7 @@ function blendDOMNode(domNode, opts) {
         },
         default: {
             set: (_, propName, val) => {
-                debug.log(`[SET ] <${domNode.tagName}/>.${propName}`, val);
+                vnode.data['log'] && debug.log(`[SET ] <${domNode.tagName}/>.${propName}`, val);
                 if (vnode.state !== VNodeState.DIRECT) {
                     checkVNodeNotDetached(vnode);
                     vnode.dispatch((targetNode) => restorable.set(targetNode, propName, val));
@@ -194,7 +200,7 @@ function blendDOMNode(domNode, opts) {
                 domNode[propName] = val;
             },
             invoke: (_, fnName, targetfn, args) => {
-                debug.log(`[CALL] <${domNode.tagName}/>.${fnName}()`, args);
+                vnode.data['log'] && debug.log(`[CALL] <${domNode.tagName}/>.${fnName}()`, args);
                 if (vnode.state !== VNodeState.DIRECT) {
                     checkVNodeNotDetached(vnode);
                     if (interceptDOMNodeInvoke(vnode, fnName, targetfn, args)) return;
@@ -211,13 +217,13 @@ function blendDOMNode(domNode, opts) {
     vnode.reconcile = () => {
         if (_reconciled) { return; }
         _reconciled = true;
-        debug.log(`reconcile: ${domNode.tagName}`);
+        vnode.data['log'] && debug.log(`reconcile: ${domNode.tagName}`);
         for (const key in blendDOMNode) {
             if (!blendDOMNode.hasOwnProperty(key)) continue;
             if (key[0] !== '_') continue;
             if (key in domNode) continue;
 
-            debug.log('new key: ' + key);
+            vnode.data['log'] && debug.log('new key: ' + key);
             const val = blendDOMNode[key];
             updateDOMProxy(blendDOMNode, { propNames: [key] });
             blendDOMNode[key] = val;
@@ -236,7 +242,7 @@ function blendDOMTextNode(domTextNode) {
     const blendDOMTextNode = proxyDOMObject(domTextNode, {
         override: {
             'ownerDocument': { 
-                get: (_, propName) => once(propName, () => blendDOMDocument(domTextNode[propName]))
+                get: (_, propName) => once(propName, () => blendDOMDocument(vnode))
             },
         },
         extend: {
@@ -250,21 +256,23 @@ function blendDOMTextNode(domTextNode) {
 
 /**
  * 
- * @param {Document} domDocument 
+ * @param {import('./vnode').VNode} vnode 
  * @return {Document}
  */
-function blendDOMDocument(domDocument) {
+function blendDOMDocument(vnode) {
+    const domNode = vnode.domNode;
+    const domDocument = domNode.ownerDocument;
     return proxyDOMObject(domDocument, {
         override: {
             'createElement': {
                 invoke: (_, _fnName, targetfn, args) => {
-                    debug.log('[CALL] domRoot.ownerDocument.createElement()', args);
+                    vnode.data['log'] && debug.log('[CALL] domRoot.ownerDocument.createElement()', args);
                     return blendDOMNode(targetfn.apply(domDocument, args));
                 }
             },
             'createTextNode': {
                 invoke: (_, _fnName, targetfn, args) => {
-                    debug.log('[CALL] domRoot.ownerDocument.createTextNode()', args);
+                    vnode.data['log'] && debug.log('[CALL] domRoot.ownerDocument.createTextNode()', args);
                     return blendDOMTextNode(targetfn.apply(domDocument, args));
                 }
             }
@@ -286,7 +294,7 @@ function blendDOMStyles(vnode, restorable) {
     return proxyDOMObject(domNode.style, {
        default: {
             set: (_, propName, val) => {
-                debug.log(`[SET ] <${domNode.tagName}/>.style.${propName}`, val);
+                vnode.data['log'] && debug.log(`[SET ] <${domNode.tagName}/>.style.${propName}`, val);
                 if (vnode.state !== VNodeState.DIRECT) {
                     checkVNodeNotDetached(vnode);
                     vnode.dispatch((targetNode) => restorableStyle.set(targetNode.style, propName, val));
@@ -294,7 +302,7 @@ function blendDOMStyles(vnode, restorable) {
                 domNode.style[propName] = val;
             },
             invoke: (_, fnName, targetfn, args) => {
-                debug.log(`[CALL] <${domNode.tagName}/>.style.${fnName}()`, args);
+                vnode.data['log'] && debug.log(`[CALL] <${domNode.tagName}/>.style.${fnName}()`, args);
                 if (vnode.state !== VNodeState.DIRECT) {
                     checkVNodeNotDetached(vnode);
                     vnode.dispatch((targetNode) => restorableStyle.invoke(targetNode.style, fnName, targetfn, args));
